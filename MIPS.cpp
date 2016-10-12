@@ -14,8 +14,8 @@ bitset<32> readDataFromMem( const vector<bitset<8>>& mem, bitset<32> dataAddress
 void writeDataToMem(vector<bitset<8>>& mem, bitset<32> dataAddress,bitset<32> wrtData){
     auto addr = dataAddress.to_ulong();
     auto data = wrtData.to_ulong();
-    mem[addr+3]= data & 0x000000ff;
-    mem[addr+2]=data &0x0000ff00;
-    mem[addr+1]=data &0x00ff0000;
-    mem[addr+0]=data &0xff000000;
+    mem[addr+3]= data ;
+    mem[addr+2]=data >>8;
+    mem[addr+1]=data >>16;
+    mem[addr+0]=data >>24;
 }

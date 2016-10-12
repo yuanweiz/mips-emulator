@@ -116,9 +116,6 @@ class INSMem
                   while (getline(imem,line))
                      {      
 #ifndef NDEBUG
-                         //I drill a hole here
-                         //so I can append some comments
-                         //to the end of input file
                          if (line.size()<2)break;
 #endif
                         IMem[i] = bitset<8>(line);
@@ -137,7 +134,11 @@ class INSMem
                return Instruction = readDataFromMem(IMem,ReadAddress);
               }     
       
+#ifndef NDEBUG
+      public:
+#else
       private:
+#endif
            vector<bitset<8> > IMem;
       
 };
@@ -203,7 +204,11 @@ class DataMem
                   dmemout.close();
                
                }             
+#ifndef NDEBUG
+      public:
+#else
       private:
+#endif
            vector<bitset<8> > DMem;
       
 };  
@@ -278,7 +283,8 @@ class DecodeResult{
         bitset<32> extImm()const{
             //in this Lab we only need zero-extended immediates
             //so things get simplified
-            return bitset<32>( imm().to_ulong());
+            int val = imm().to_ulong();
+            return bitset<32>( val);
 
         }
         bitset<26> addr() const{
@@ -316,15 +322,33 @@ class MIPS {
             dmemOutputFile_(dmemOutputFile)
     {}
         void start (){
+            //use cache to emulate flip-flop mechanism
+            //actually PC is also a flip-flop "cache", just like
+            //the variables below
+            bitset<1> wrtEnable(0);
+            bitset<5> wrtReg;
+            bitset<32> wrtRegData;
             while (1)
             {
                 // Fetch
                 auto ins = myInsMem.ReadMemory(PC);
                 
                 
-                // If current insturciton is "11111111111111111111111111111111", then break;
                 // decode(Read RF)
                 DecodeResult res(ins); 
+                bitset<1> isStore(res.isStore()),
+                    isLoad(res.isLoad());
+                
+                // Execute
+                // semantics: ReadData1<- Reg[reg1], ReadData2<-Reg[reg2]
+                myRF.ReadWrite(res.rs(),res.rt(),wrtReg,wrtRegData,wrtEnable);
+
+                //update values
+                wrtEnable = res.wrtEnable();
+                wrtReg = res.isRtype()? res.rd() : res.rt();
+
+                // Notice: halt predication is moved here, not 
+                // the begining of while loop
                 if (res.isNop())
                 {
                     PC=bitset<32>(PC.to_ulong()+4);
@@ -332,15 +356,6 @@ class MIPS {
                 }
                 if ( res.isHalt())
                     break;
-                bitset<1> isStore(res.isStore()),
-                    isLoad(res.isLoad());
-                
-                // Execute
-                // semantics: ReadData1<- Reg[reg1], ReadData2<-Reg[reg2]
-                // execute order????
-                bitset<32> wrtRegData; 
-                bitset<5> wrtReg = res.isRtype()? res.rd():res.rt();
-                myRF.ReadWrite(res.rs(),res.rt(),wrtReg,myDataMem.readdata,res.wrtEnable());
 
                 //ALU operands:
                 // semantics:ALUResult<- op ( operand1, operand2 , ALUOP)
@@ -362,7 +377,7 @@ class MIPS {
                 // if Store, then Memory[ALUResult] <- reg
                 myDataMem.MemoryAccess(myALU.ALUresult,myRF.ReadData1,isLoad,isStore);
                 
-                // Write back to RF
+                // update
                 // semantics: if Load, then rd<- DataMem::cache;
                 // else rd <- ALUResult
                 // for branch/jump, the ALUResult is broken but wrtEnable
@@ -372,12 +387,11 @@ class MIPS {
                 }
                 else wrtRegData = myALU.ALUresult;
 
-                //??????
-                myRF.ReadWrite(res.rs(),res.rt(),res.rd(),wrtRegData,res.wrtEnable());
-
                 //NextPC
                 if (res.isBranch() && isEq ){
-                    PC = res.extImm();
+                    //PC = res.extImm();
+                    auto pc = PC.to_ulong() +4 + res.imm().to_ulong() *4;
+                    PC=pc;
                 }
                 else if (res.isJtype()){
                     auto pc=PC.to_ulong();
