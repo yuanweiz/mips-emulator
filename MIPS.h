@@ -377,7 +377,7 @@ class MIPS {
                 // Read/Write Mem
                 // semantics: if Load, then cache<- Memory[ALUResult]
                 // if Store, then Memory[ALUResult] <- reg
-                myDataMem.MemoryAccess(myALU.ALUresult,myRF.ReadData1,isLoad,isStore);
+                myDataMem.MemoryAccess(myALU.ALUresult,myRF.ReadData2,isLoad,isStore);
                 
                 // update
                 // semantics: if Load, then rd<- DataMem::cache;

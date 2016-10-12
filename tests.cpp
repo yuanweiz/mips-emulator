@@ -210,13 +210,31 @@ TEST(j,forward){
     EXPECT_EQ(mips.myRF.get(3),10);
 }
 
-TEST(lw,lw){
+TEST(lw,toSelf){
     auto mips=getDummyMIPS();
     writeDataToMem(mips.myInsMem.IMem,0x0, 0x8c214321); //lw $1,0x4321($1)
-    writeDataToMem(mips.myDataMem.DMem,0x4321, 0x12345678); //j 0x0
+    writeDataToMem(mips.myDataMem.DMem,0x4326, 0x12345678); 
     mips.myRF.set(1,5);
     mips.start();
     EXPECT_EQ(mips.myRF.get(1),0x12345678);
+}
+
+TEST(lw,toOtherReg){
+    auto mips=getDummyMIPS();
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0x8c224321); //lw $1,0x4321($2)
+    writeDataToMem(mips.myDataMem.DMem,0x4326, 0x12345678); 
+    mips.myRF.set(1,5);
+    mips.start();
+    EXPECT_EQ(mips.myRF.get(2),0x12345678);
+}
+
+TEST(sw,sw){
+    auto mips=getDummyMIPS();
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0xac224321); //sw $1,0x4321($2)
+    mips.myRF.set(1,5);
+    mips.myRF.set(2,0x12345678);
+    mips.start();
+    EXPECT_EQ(readDataFromMem(mips.myDataMem.DMem,0x4326),0x12345678);
 }
 
 int main (int argc,char* argv[]){
