@@ -30,14 +30,14 @@ class RF
         void ReadWrite(bitset<5> RdReg1, bitset<5> RdReg2, bitset<5> WrtReg, bitset<32> WrtData, bitset<1> WrtEnable)
         {   
             // implement the funciton by you.                
-            ReadData1 = Registers[RdReg1.to_ulong()];
-            ReadData2 = Registers[RdReg2.to_ulong()];
             if (WrtEnable.test(0)){
                 //$0 should never be modified
                 auto wrtRegIdx = WrtReg.to_ulong();
                 if (wrtRegIdx==0) return;
                 Registers[wrtRegIdx]=WrtData;
             }
+            ReadData1 = Registers[RdReg1.to_ulong()];
+            ReadData2 = Registers[RdReg2.to_ulong()];
          }
 		 
 	void OutputRF(const char* outfile)
@@ -224,7 +224,8 @@ class DecodeResult{
             return 0==(ins_ & 0xFC000000);
         }
         bool isJtype() const{
-            return !isRtype() && !isItype();
+            //return !isRtype() && !isItype();
+            return bitset<6>(2)== opcode();
         }
         bool isItype() const{
             return 0!=(ins_ & 0xFC000000);
@@ -252,12 +253,13 @@ class DecodeResult{
         }
 
         bitset<3> ALUOP()const{
-            if (isRtype() ){
+            if (isLoad()||isStore()){
+                return bitset<3>(1);
+            }
+            else if (isRtype()){
                 return indice<0,3>();
             }
-            else {
-                return indice<26,29>();
-            }
+            else return indice<26,29>();
         }
         bitset<6> opcode() const {
             return indice<26,32> ();
@@ -295,7 +297,7 @@ class DecodeResult{
         // to judge if the instruction writes to memory
         // plese use isStore();
         bitset<1> wrtEnable()const{
-            if (isBranch()|| isStore() || isJtype())
+            if (isBranch()|| isStore() || isJtype() || isNop())
                 return bitset<1>(0);
             else return bitset<1>(1);
         }
@@ -390,12 +392,12 @@ class MIPS {
                 //NextPC
                 if (res.isBranch() && isEq ){
                     //PC = res.extImm();
-                    auto pc = PC.to_ulong() +4 + res.imm().to_ulong() *4;
+                    auto pc = PC.to_ulong() + 4 + res.imm().to_ulong() *4;
                     PC=pc;
                 }
                 else if (res.isJtype()){
                     auto pc=PC.to_ulong();
-                    pc = res.addr().to_ulong() <<2 | (pc&0xFC000000);
+                    pc = res.addr().to_ulong() <<2 | (pc&0xF0000000);
                     PC=pc;
                 }
                 else {

@@ -9,6 +9,26 @@ MIPS getDummyMIPS (unsigned int maxInstructionCount=10){
     writeDataToMem(ret.myInsMem.IMem,4*maxInstructionCount, 0xffffffff);
     return ret;
 }
+
+TEST(decode, pred ){
+    //wrtEnable is the most important predication
+    unsigned long ins[] = {
+        0x00221821, //addu $3,$1,$2
+        0x08000000, // j 0x0
+        0x8c000000, // lw $0,0($0)
+        0xac000000, // sw $0,0($0)
+    };
+    bool expectWrtEnable[] = {
+        true,
+        false,
+        true,
+        false,
+    };
+    for (size_t i=0;i< sizeof (expectWrtEnable)/sizeof(bool);++i){
+        DecodeResult res(ins[i]);
+        EXPECT_EQ( res.wrtEnable(),expectWrtEnable[i]) << "i=" << i;
+    }
+}
 TEST(addu,onePlusTwo){
     DecodeResult res(bitset<32>(0x00221821));
     EXPECT_EQ(res.ALUOP(),ADDU )<< "expected ADDU";
@@ -120,7 +140,7 @@ TEST(addiu,addToOtherReg){
     auto mips=getDummyMIPS();
     //force load instruction and data
     bitset<32> ins (0x24221234); //addiu $1, 0x1234($2)
-    writeDataToMem(mips.myInsMem.IMem,0x0, ins);
+    writeDataToMem(mips.myInsMem.IMem,0x4, ins);
     DecodeResult res(ins);
     EXPECT_EQ(res.imm(), 0x1234);
     EXPECT_EQ(res.extImm(), 0x1234);
@@ -150,13 +170,53 @@ TEST(addiu,checkUnsigned){
 TEST(beq, equal){
     auto mips= getDummyMIPS();
     //force load instruction and data
-    writeDataToMem(mips.myInsMem.IMem,0x0, 0x10220001); //beq $1,$2,0x1
-    writeDataToMem(mips.myInsMem.IMem,0x4, 0xffffffff); //halt, shouldn't reach here
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0x10220002); //beq $1,$2,0x2
+    writeDataToMem(mips.myInsMem.IMem,0x4, 0x2422ffff); //addiu $1, 0xffff($2)
+    writeDataToMem(mips.myInsMem.IMem,0x8, 0xffffffff); //halt, shouldn't reach here
+    writeDataToMem(mips.myInsMem.IMem,0xc, 0x00221821); //but here, (addu $3,$1,$2)
+    mips.myRF.set(1,5);
+    mips.myRF.set(2,5); //shouldn't be modified
+    mips.start();
+    EXPECT_EQ(mips.myRF.get(1),5);
+    EXPECT_EQ(mips.myRF.get(2),5);
+    EXPECT_EQ(mips.myRF.get(3),10);
+}
+
+TEST(beq, notEqual){
+    auto mips= getDummyMIPS();
+    //force load instruction and data
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0x10220000); //beq $1,$2,0x0
+    writeDataToMem(mips.myInsMem.IMem,0x4, 0x24220000); //addiu $1, 0x0($2)
     writeDataToMem(mips.myInsMem.IMem,0x8, 0x00221821); //addu $3,$1,$2
     mips.myRF.set(1,5);
-    mips.myRF.set(2,10);
+    mips.myRF.set(2,10); //shouldn't be modified
     mips.start();
-    EXPECT_EQ(mips.myRF.get(3),15);
+    EXPECT_EQ(mips.myRF.get(1),5);
+    EXPECT_EQ(mips.myRF.get(2),5);
+    EXPECT_EQ(mips.myRF.get(3),10);
+}
+
+TEST(j,forward){
+    auto mips= getDummyMIPS();
+    //force load instruction and data
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0x08000001); //j 0x0
+    writeDataToMem(mips.myInsMem.IMem,0x4, 0x24220000); //addiu $1, 0x0($2)
+    writeDataToMem(mips.myInsMem.IMem,0x8, 0x00221821); //addu $3,$1,$2
+    mips.myRF.set(1,5);
+    mips.myRF.set(2,10); //shouldn't be modified
+    mips.start();
+    EXPECT_EQ(mips.myRF.get(1),5);
+    EXPECT_EQ(mips.myRF.get(2),5);
+    EXPECT_EQ(mips.myRF.get(3),10);
+}
+
+TEST(lw,lw){
+    auto mips=getDummyMIPS();
+    writeDataToMem(mips.myInsMem.IMem,0x0, 0x8c214321); //lw $1,0x4321($1)
+    writeDataToMem(mips.myDataMem.DMem,0x4321, 0x12345678); //j 0x0
+    mips.myRF.set(1,5);
+    mips.start();
+    EXPECT_EQ(mips.myRF.get(1),0x12345678);
 }
 
 int main (int argc,char* argv[]){
